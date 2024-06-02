@@ -30,7 +30,7 @@ io.on('connection', (socket) => {
         const { roomId, point } = data;
         io.to(roomId).emit('drawing', { point });
         console.log(`Drawing event received from user ${socket.id} in room ${roomId}:`, point);
-    });
+      });
 
     // Handle disconnect
     socket.on('disconnect', () => {
