@@ -1,47 +1,52 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
 
-// Initialize Express app
 const app = express();
-app.use(cors());
-
-// Create HTTP server and bind it with Socket.IO
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: '*',
-  },
-});
+const io = socketIo(server);
 
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
-
-  // Listen for drawing events from clients
-  socket.on('drawing', (data) => {
-    // Broadcast drawing data to all connected clients except the sender
-    socket.broadcast.emit('drawing', data);
-  });
-
-  // Listen for clear events from clients
-  socket.on('clear', () => {
-    // Broadcast clear event to all connected clients
-    socket.broadcast.emit('clear');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-});
-
-// Serve a simple message at the root URL
-app.get('/', (req, res) => {
-  res.send('Whiteboard server is running');
-});
-
-// Start the server
 const PORT = process.env.PORT || 3000;
+
+// Store room data
+const rooms = {};
+
+// Handle socket connection
+io.on('connection', (socket) => {
+    console.log('A user connected');
+
+    // Handle joining a room
+    socket.on('joinRoom', (roomId) => {
+        socket.join(roomId);
+        if (!rooms[roomId]) {
+            rooms[roomId] = [];
+        }
+        rooms[roomId].push(socket.id);
+        console.log(`User ${socket.id} joined room ${roomId}`);
+    });
+
+    // Handle drawing
+    socket.on('drawing', (data) => {
+        const { roomId, point } = data;
+        io.to(roomId).emit('drawing', { point });
+        console.log(`Drawing event received from user ${socket.id} in room ${roomId}:`, point);
+    });
+
+    // Handle disconnect
+    socket.on('disconnect', () => {
+        console.log(`User ${socket.id} disconnected`);
+        // Remove user from all rooms
+        for (const roomId in rooms) {
+            if (rooms[roomId].includes(socket.id)) {
+                rooms[roomId] = rooms[roomId].filter(id => id !== socket.id);
+                io.to(roomId).emit('userDisconnected', { userId: socket.id });
+                console.log(`User ${socket.id} removed from room ${roomId}`);
+            }
+        }
+    });
+});
+
+// Start server
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
