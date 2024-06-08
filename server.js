@@ -17,7 +17,7 @@ io.on('connection', (socket) => {
     if (disposedRooms.has(roomId)) {
       // If room is disposed, notify the client
       console.log(`User ${socket.id} attempted to access disposed room ${roomId}`);
-      socket.emit('roomClosed', roomId);
+       socket.emit('roomClosed', roomId);
     } else {
       if (!activeRooms[roomId]) {
         // Create a new room
@@ -45,6 +45,7 @@ io.on('connection', (socket) => {
   // Leave room
   socket.on('leaveRoom', (roomId) => {
     socket.leave(roomId);
+    socket.disconnect();
     if (activeRooms[roomId]) {
       activeRooms[roomId] = activeRooms[roomId].filter(id => id !== socket.id);
       console.log(`User ${socket.id} left room ${roomId}`);
