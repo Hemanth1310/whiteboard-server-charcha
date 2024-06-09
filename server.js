@@ -17,7 +17,7 @@ io.on('connection', (socket) => {
     if (disposedRooms.has(roomId)) {
       // If room is disposed, notify the client
       console.log(`User ${socket.id} attempted to access disposed room ${roomId}`);
-       socket.emit('roomClosed', roomId);
+      socket.emit('roomClosed', roomId);
     } else {
       if (!activeRooms[roomId]) {
         // Create a new room
@@ -34,7 +34,8 @@ io.on('connection', (socket) => {
 
   // Handle drawing
   socket.on('drawing', (data) => {
-    const { roomId, point } = data;
+    const { roomId, x, y } = data;
+    const point = { x, y };
     if (activeRooms[roomId]) {
       roomDrawings[roomId].push(point); // Store drawing data
       io.to(roomId).emit('drawing', point);
@@ -42,10 +43,34 @@ io.on('connection', (socket) => {
     }
   });
 
+  // WebRTC signaling
+  socket.on('webrtc-offer', (data) => {
+    const { roomId, type, sdp } = data;
+    if (activeRooms[roomId]) {
+      socket.to(roomId).emit('webrtc-offer', { type, sdp });
+      console.log(`WebRTC offer from user ${socket.id} in room ${roomId}`);
+    }
+  });
+
+  socket.on('webrtc-answer', (data) => {
+    const { roomId, type, sdp } = data;
+    if (activeRooms[roomId]) {
+      socket.to(roomId).emit('webrtc-answer', { type, sdp });
+      console.log(`WebRTC answer from user ${socket.id} in room ${roomId}`);
+    }
+  });
+
+  socket.on('webrtc-candidate', (data) => {
+    const { roomId, candidate, sdpMid, sdpMLineIndex } = data;
+    if (activeRooms[roomId]) {
+      socket.to(roomId).emit('webrtc-candidate', { candidate, sdpMid, sdpMLineIndex });
+      console.log(`WebRTC candidate from user ${socket.id} in room ${roomId}`);
+    }
+  });
+
   // Leave room
   socket.on('leaveRoom', (roomId) => {
     socket.leave(roomId);
-    socket.disconnect();
     if (activeRooms[roomId]) {
       activeRooms[roomId] = activeRooms[roomId].filter(id => id !== socket.id);
       console.log(`User ${socket.id} left room ${roomId}`);
