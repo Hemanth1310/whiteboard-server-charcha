@@ -12,18 +12,31 @@ const roomDrawings = {};
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // Join or create room
-  socket.on('joinOrCreateRoom', (roomId) => {
+  // Create room
+  socket.on('createRoom', (roomId) => {
+    if (!activeRooms[roomId] && !disposedRooms.has(roomId)) {
+      activeRooms[roomId] = [];
+      roomDrawings[roomId] = []; // Initialize drawing data for the room
+      socket.join(roomId);
+      activeRooms[roomId].push(socket.id);
+      socket.emit('roomJoined', roomId); // Emit roomJoined event here
+      console.log(`User ${socket.id} created and joined room ${roomId}`);
+    } else {
+      console.log(`User ${socket.id} attempted to create an existing or disposed room ${roomId}`);
+    }
+  });
+
+  // Join room
+  socket.on('joinRoom', (roomId) => {
     if (disposedRooms.has(roomId)) {
       // If room is disposed, notify the client
       console.log(`User ${socket.id} attempted to access disposed room ${roomId}`);
-       socket.emit('roomClosed', roomId);
+      socket.emit('roomClosed', roomId);
+    } else if (!activeRooms[roomId]) {
+      // If room does not exist, notify the client
+      console.log(`User ${socket.id} attempted to join non-existent room ${roomId}`);
+      socket.emit('roomNotFound', roomId);
     } else {
-      if (!activeRooms[roomId]) {
-        // Create a new room
-        activeRooms[roomId] = [];
-        roomDrawings[roomId] = []; // Initialize drawing data for the room
-      }
       socket.join(roomId);
       activeRooms[roomId].push(socket.id);
       socket.emit('roomJoined', roomId); // Emit roomJoined event here
