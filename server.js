@@ -1,89 +1,81 @@
-const app = require('express')();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 
-// Store active rooms
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
 const activeRooms = {};
-// Store disposed rooms
 const disposedRooms = new Set();
-// Store drawing data for each room
 const roomDrawings = {};
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // Create room
   socket.on('createRoom', (roomId) => {
-    if (!activeRooms[roomId] && !disposedRooms.has(roomId)) {
+    if (!activeRooms[roomId]) {
       activeRooms[roomId] = [];
-      roomDrawings[roomId] = []; // Initialize drawing data for the room
-      socket.join(roomId);
-      activeRooms[roomId].push(socket.id);
-      socket.emit('roomJoined', roomId); // Emit roomJoined event here
-      console.log(`User ${socket.id} created and joined room ${roomId}`);
-    } else {
-      console.log(`User ${socket.id} attempted to create an existing or disposed room ${roomId}`);
+      roomDrawings[roomId] = [];
     }
+    socket.join(roomId);
+    activeRooms[roomId].push(socket.id);
+    socket.emit('roomJoined', roomId);
+    console.log(`User ${socket.id} created and joined room ${roomId}`);
   });
 
-  // Join room
   socket.on('joinRoom', (roomId) => {
     if (disposedRooms.has(roomId)) {
-      // If room is disposed, notify the client
-      console.log(`User ${socket.id} attempted to access disposed room ${roomId}`);
       socket.emit('roomClosed', roomId);
     } else if (!activeRooms[roomId]) {
-      // If room does not exist, notify the client
-      console.log(`User ${socket.id} attempted to join non-existent room ${roomId}`);
       socket.emit('roomNotFound', roomId);
     } else {
       socket.join(roomId);
       activeRooms[roomId].push(socket.id);
-      socket.emit('roomJoined', roomId); // Emit roomJoined event here
-      socket.emit('loadDrawing', roomDrawings[roomId]); // Send existing drawing data to the new user
+      socket.emit('roomJoined', roomId);
+      socket.emit('loadDrawing', roomDrawings[roomId]);
       console.log(`User ${socket.id} joined room ${roomId}`);
     }
   });
 
-  // Handle drawing
   socket.on('drawing', (data) => {
     const { roomId, point } = data;
     if (activeRooms[roomId]) {
-      roomDrawings[roomId].push(point); // Store drawing data
+      roomDrawings[roomId].push(point);
       io.to(roomId).emit('drawing', point);
-      console.log(`Drawing event received from user ${socket.id} in room ${roomId}:`, point);
     }
   });
 
-  // Leave room
+  socket.on('webrtc', (data) => {
+    const { roomId, message } = data;
+    if (activeRooms[roomId]) {
+      socket.to(roomId).emit('webrtc', { message });
+    }
+  });
+
   socket.on('leaveRoom', (roomId) => {
     socket.leave(roomId);
-    socket.disconnect();
     if (activeRooms[roomId]) {
       activeRooms[roomId] = activeRooms[roomId].filter(id => id !== socket.id);
-      console.log(`User ${socket.id} left room ${roomId}`);
       if (activeRooms[roomId].length === 0) {
-        delete activeRooms[roomId]; // If no users in room, dispose it
-        disposedRooms.add(roomId); // Add to disposed rooms list
-        delete roomDrawings[roomId]; // Delete drawing data for the room
-        console.log(`Room ${roomId} has been disposed of`);
+        delete activeRooms[roomId];
+        disposedRooms.add(roomId);
+        delete roomDrawings[roomId];
         io.emit('roomDisposed', roomId);
       }
     }
+    console.log(`User ${socket.id} left room ${roomId}`);
   });
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     console.log(`User ${socket.id} disconnected`);
-    // Remove user from all rooms
     for (const roomId in activeRooms) {
       if (activeRooms[roomId].includes(socket.id)) {
         activeRooms[roomId] = activeRooms[roomId].filter(id => id !== socket.id);
         if (activeRooms[roomId].length === 0) {
-          delete activeRooms[roomId]; // If no users in room, dispose it
-          disposedRooms.add(roomId); // Add to disposed rooms list
-          delete roomDrawings[roomId]; // Delete drawing data for the room
-          console.log(`Room ${roomId} has been disposed of`);
+          delete activeRooms[roomId];
+          disposedRooms.add(roomId);
+          delete roomDrawings[roomId];
           io.emit('roomDisposed', roomId);
         }
       }
@@ -92,6 +84,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3004;
-http.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
