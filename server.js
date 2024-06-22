@@ -27,8 +27,10 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', (roomId) => {
     if (disposedRooms.has(roomId)) {
       socket.emit('roomClosed', roomId);
+
     } else if (!activeRooms[roomId]) {
       socket.emit('roomNotFound', roomId);
+
     } else {
       socket.join(roomId);
       activeRooms[roomId].push(socket.id);
@@ -39,20 +41,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('drawing', (data) => {
-    const { roomId, point } = data;
+    const { roomId, x, y } = data;
+    const point = { x, y };
     if (activeRooms[roomId]) {
       roomDrawings[roomId].push(point);
       io.to(roomId).emit('drawing', point);
     }
-  });
+  })
 
-  socket.on('webrtc', (data) => {
-    const { roomId, message } = data;
-    if (activeRooms[roomId]) {
-      socket.to(roomId).emit('webrtc', { message });
-    }
-  });
 
+  // Leave room
   socket.on('leaveRoom', (roomId) => {
     socket.leave(roomId);
     if (activeRooms[roomId]) {
