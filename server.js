@@ -39,16 +39,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('drawing', (data) => {
-    const { roomId, point, color } = data;
+    const { roomId, point } = data;
+
+    if (!roomId || !point) {
+      console.log(`Invalid drawing data received from user ${socket.id} in room ${roomId}:`, data);
+      return;
+    }
 
     if (activeRooms[roomId]) {
       if (point.x === -1 && point.y === -1) {
-        roomDrawings[roomId].push({ x: -1, y: -1, color });
-        io.to(roomId).emit('drawing', { x: -1, y: -1, color });
+        roomDrawings[roomId].push({ x: -1, y: -1, color: point.color });
+        io.to(roomId).emit('drawing', { x: -1, y: -1, color: point.color });
         console.log(`End of stroke received from user ${socket.id} in room ${roomId}`);
       } else {
-        roomDrawings[roomId].push({ ...point, color });
-        io.to(roomId).emit('drawing', { ...point, color });
+        roomDrawings[roomId].push(point);
+        io.to(roomId).emit('drawing', point);
         console.log(`Drawing event received from user ${socket.id} in room ${roomId}:`, point);
       }
     } else {
